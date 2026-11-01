@@ -1,0 +1,28 @@
+{
+  "name": "Any-Model Playground + Ollama",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+  "containerEnv": {
+    "OLLAMA_MODEL": "s1gnature/gemma4-uncensored-mtp:e2b-q4_k_m",
+    "OLLAMA_CONTEXT_LENGTH": "8192"
+  },
+  "postCreateCommand": "bash scripts/start-ollama.sh",
+  "postStartCommand": "bash scripts/start-ollama.sh",
+  "forwardPorts": [11434, 8000],
+  "portsAttributes": {
+    "11434": {
+      "label": "Ollama API",
+      "visibility": "public",
+      "onAutoForward": "silent"
+    },
+    "8000": {
+      "label": "Playground (local copy)",
+      "visibility": "public",
+      "onAutoForward": "notify"
+    }
+  },
+  "hostRequirements": {
+    "cpus": 2,
+    "memory": "8gb",
+    "storage": "32gb"
+  }
+}

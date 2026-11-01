@@ -48,6 +48,37 @@ python3 -m http.server 8000
 
 Deployed Pages URL cloud providers (Groq, OpenRouter, Anthropic, Gemini) ke liye hai.
 
+## GitHub Codespaces (model cloud me chalta hai, laptop pe kuch nahi)
+
+Repo me devcontainer ready hai. Model codespace ke andar download hota hai, tumhare localhost pe nahi.
+
+1. Repo kholo -> **Code -> Codespaces -> Create codespace on main**. Free 2-core / 8 GB machine kaafi hai.
+2. Pehli baar `scripts/start-ollama.sh` khud chalta hai: Ollama install, `ollama serve`, model pull. (Manual: `bash scripts/start-ollama.sh`.)
+3. **Ports** tab -> port **11434** -> visibility **Public**.
+4. Us port ka URL copy karo, shape: `https://<codespace-name>-11434.app.github.dev`
+5. Playground kholo, provider **Ollama**, Base URL me `<wo URL>/v1` paste karo, Model field me pulled model ka naam, Send.
+
+Machine size ke hisaab se model:
+
+| Codespace machine | RAM | Model |
+|---|---|---|
+| 2-core (free) | 8 GB | `s1gnature/gemma4-uncensored-mtp:e2b-q4_k_m` (3.6 GB) |
+| 4-core | 16 GB | `s1gnature/gemma4-uncensored-mtp:e4b-q4_k_m` (6.5 GB) ya `eriktonon/qwen3.8-uncensored:9b` (6.3 GB) |
+| 8-core+ | 32 GB | `abliterant/qwen3.8-rana:q4_K_M` (17.5 GB) |
+
+Doosra model chahiye to:
+
+```bash
+OLLAMA_MODEL=eriktonon/qwen3.8-uncensored:9b bash scripts/start-ollama.sh
+```
+
+Dhyan rakho:
+
+- Port public karne ka matlab, jis ke paas URL hai wo bhi model use kar sakta hai jab tak codespace chalu hai. Kaam khatam hone pe codespace **Stop** karo.
+- Free tier: 120 core-hours/month (2-core = ~60 ghante chalu) aur 15 GB-month storage.
+- Codespace stop/hibernate hone ke baad `postStartCommand` Ollama phir start kar deta hai, model disk pe rehta hai, dobara pull nahi hoga.
+- Thinking models (gemma4, qwen3.8) apna reasoning "Thinking" panel me dikhate hain. Max tokens kam hua to jawab thinking me hi khatam ho sakta hai.
+
 ## Cloud providers (CORS)
 
 Groq, OpenRouter, Anthropic aur Gemini browser se direct chalte hain. OpenAI, Mistral, DeepSeek, xAI browser CORS band rakhte hain, unke liye proxy chalao:

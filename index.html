@@ -50,6 +50,9 @@
   .msg.user{align-self:flex-end; background:var(--user); border:1px solid var(--line)}
   .msg.assistant{align-self:flex-start; background:var(--bot); border:1px solid #1d2230}
   .who{font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--dim); margin-bottom:5px}
+  details.think{margin:0 0 8px; font-size:12px; color:var(--dim)}
+  details.think summary{cursor:pointer; color:var(--dim); outline:none; user-select:none}
+  details.think .think-body{margin-top:6px; padding-left:10px; border-left:2px solid var(--line); white-space:pre-wrap}
   form{display:flex; gap:10px; padding:14px 26px; border-top:1px solid var(--line); background:#0d0f14}
   #input{flex:1; min-height:46px; max-height:180px; resize:none}
   #status{font-size:12px; padding:0 26px 12px; color:var(--dim); min-height:18px}
@@ -164,6 +167,8 @@ const STORE = 'amp.settings.v1';
 let messages = [];
 let controller = null;
 let liveEl = null;
+let liveThinkEl = null;
+let liveThink = null;
 
 function readStore(){
   try { return JSON.parse(localStorage.getItem(STORE)) || {}; } catch(e){ return {}; }
@@ -213,7 +218,9 @@ function updateNote(){
   let text, warn = !p.cors;
 
   if(name === 'ollama'){
-    text = 'Local model. Pehle chalao: ollama pull ' + model +
+    const remote = !/localhost|127\.0\.0\.1/.test(baseInput.value);
+    text = (remote ? 'Remote Ollama (Codespaces/cloud). Model pehle pull hona chahiye: ollama pull ' + model
+                   : 'Local model. Pehle chalao: ollama pull ' + model) +
       '  |  CORS error aaye to OLLAMA_ORIGINS=* set karo. Lambi chat ke liye OLLAMA_CONTEXT_LENGTH=32768 set karo.';
   } else {
     text = p.cors
@@ -278,10 +285,23 @@ function bubble(m){
   const who = document.createElement('div');
   who.className = 'who';
   who.textContent = m.role === 'user' ? 'You' : 'Assistant';
+  d.appendChild(who);
+  if(m.role !== 'user'){
+    const det = document.createElement('details');
+    det.className = 'think';
+    if(!m.think) det.hidden = true;
+    const sum = document.createElement('summary');
+    sum.textContent = 'Thinking';
+    const tb = document.createElement('div');
+    tb.className = 'think-body';
+    tb.textContent = m.think || '';
+    det.appendChild(sum); det.appendChild(tb);
+    d.appendChild(det);
+  }
   const body = document.createElement('div');
   body.className = 'body';
   body.textContent = m.content;
-  d.appendChild(who); d.appendChild(body);
+  d.appendChild(body);
   return d;
 }
 
@@ -296,11 +316,23 @@ function render(){
     return;
   }
   for(const m of messages) chatEl.appendChild(bubble(m));
-  liveEl = chatEl.lastElementChild ? chatEl.lastElementChild.querySelector('.body') : null;
+  const last = chatEl.lastElementChild;
+  liveEl = last ? last.querySelector('.body') : null;
+  liveThinkEl = last ? last.querySelector('details.think') : null;
+  liveThink = last ? last.querySelector('.think-body') : null;
   scroll();
 }
 
 function scroll(){ chatEl.scrollTop = chatEl.scrollHeight; }
+
+function updateLive(a){
+  if(liveThink){
+    liveThink.textContent = a.think || '';
+    if(liveThinkEl) liveThinkEl.hidden = !a.think;
+  }
+  if(liveEl) liveEl.textContent = a.content;
+  scroll();
+}
 
 function setBusy(b){
   sendBtn.disabled = b;
@@ -358,7 +390,7 @@ function sseReader(res, onEvent){
   })();
 }
 
-async function streamOpenAI(c, msgs, onDelta){
+async function streamOpenAI(c, msgs, onDelta, onThink){
   const headers = {'Content-Type':'application/json'};
   if(c.key) headers['Authorization'] = 'Bearer ' + c.key;
   if(c.name === 'openrouter'){ headers['HTTP-Referer'] = location.href; headers['X-Title'] = 'Any-Model Playground'; }
@@ -371,13 +403,15 @@ async function streamOpenAI(c, msgs, onDelta){
   if(!res.ok) throw new Error(await errText(res));
   await sseReader(res, j => {
     const ch = j.choices && j.choices[0];
-    if(!ch) return;
-    const d = ch.delta && ch.delta.content;
-    if(typeof d === 'string' && d) onDelta(d);
+    if(!ch || !ch.delta) return;
+    const cont = ch.delta.content;
+    if(typeof cont === 'string' && cont) onDelta(cont);
+    const think = ch.delta.reasoning || ch.delta.reasoning_content;
+    if(typeof think === 'string' && think) onThink(think);
   });
 }
 
-async function streamAnthropic(c, msgs, onDelta){
+async function streamAnthropic(c, msgs, onDelta, onThink){
   const body = {
     model: c.model,
     max_tokens: c.maxTokens,
@@ -399,12 +433,15 @@ async function streamAnthropic(c, msgs, onDelta){
   });
   if(!res.ok) throw new Error(await errText(res));
   await sseReader(res, j => {
-    if(j.type === 'content_block_delta' && j.delta && typeof j.delta.text === 'string') onDelta(j.delta.text);
+    if(j.type === 'content_block_delta' && j.delta){
+      if(j.delta.type === 'thinking_delta' && typeof j.delta.thinking === 'string') onThink(j.delta.thinking);
+      else if(typeof j.delta.text === 'string' && j.delta.text) onDelta(j.delta.text);
+    }
     if(j.type === 'error' && j.error) throw new Error(j.error.message || 'stream error');
   });
 }
 
-async function streamGemini(c, msgs, onDelta){
+async function streamGemini(c, msgs, onDelta, onThink){
   const url = c.base + '/models/' + encodeURIComponent(c.model) + ':streamGenerateContent?alt=sse';
   const body = {
     contents: msgs.map(m => ({role: m.role === 'assistant' ? 'model' : 'user', parts:[{text: m.content}]})),
@@ -421,7 +458,10 @@ async function streamGemini(c, msgs, onDelta){
   await sseReader(res, j => {
     const cand = j.candidates && j.candidates[0];
     if(!cand || !cand.content || !cand.content.parts) return;
-    for(const part of cand.content.parts) if(typeof part.text === 'string' && part.text) onDelta(part.text);
+    for(const part of cand.content.parts){
+      if(typeof part.text !== 'string' || !part.text) continue;
+      if(part.thought) onThink(part.text); else onDelta(part.text);
+    }
   });
 }
 
@@ -442,17 +482,16 @@ async function run(){
   inputEl.value = '';
   render();
 
-  const onDelta = t => {
-    a.content += t;
-    if(liveEl){ liveEl.textContent = a.content; scroll(); }
-  };
+  const onDelta = t => { a.content += t; updateLive(a); };
+  const onThink = t => { a.think = (a.think || '') + t; updateLive(a); };
   const history = messages.slice(0, -1).map(m => ({role:m.role, content:m.content}));
 
   try {
-    if(c.kind === 'anthropic') await streamAnthropic(c, history, onDelta);
-    else if(c.kind === 'gemini') await streamGemini(c, history, onDelta);
-    else await streamOpenAI(c, history, onDelta);
-    if(!a.content) a.content = '(empty response)';
+    if(c.kind === 'anthropic') await streamAnthropic(c, history, onDelta, onThink);
+    else if(c.kind === 'gemini') await streamGemini(c, history, onDelta, onThink);
+    else await streamOpenAI(c, history, onDelta, onThink);
+    if(!a.content && a.think) a.content = '(thinking me hi token khatam ho gaye, max tokens badhao)';
+    else if(!a.content) a.content = '(empty response)';
   } catch(e){
     if(e.name === 'AbortError'){
       a.content += (a.content ? '\n\n' : '') + '[stopped]';
