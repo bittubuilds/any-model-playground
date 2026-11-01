@@ -58,6 +58,14 @@ Repo me devcontainer ready hai. Model codespace ke andar download hota hai, tumh
 4. Us port ka URL copy karo, shape: `https://<codespace-name>-11434.app.github.dev`
 5. Playground kholo, provider **Ollama**, Base URL me `<wo URL>/v1` paste karo, Model field me pulled model ka naam, Send.
 
+Tip: ek bookmark bana lo jisme codespace URL pehle se ho —
+
+```
+https://bittubuilds.github.io/any-model-playground/?ollama=https://<codespace-name>-11434.app.github.dev
+```
+
+Bas host daalo, `/v1` khud lag jata hai. Ye setting browser me save ho jati hai.
+
 Machine size ke hisaab se model:
 
 | Codespace machine | RAM | Model |

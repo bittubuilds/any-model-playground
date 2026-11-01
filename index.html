@@ -175,12 +175,35 @@ function readStore(){
 }
 function writeStore(o){ try { localStorage.setItem(STORE, JSON.stringify(o)); } catch(e){} }
 
+function normalizeOllamaBase(v){
+  let u = String(v || '').trim().replace(/\/+$/, '');
+  if(!u) return u;
+  if(!/^https?:\/\//i.test(u)){
+    u = (/localhost|127\.0\.0\.1/.test(u) ? 'http://' : 'https://') + u;
+  }
+  if(!/\/(v1|api)$/.test(u)) u += '/v1';
+  return u;
+}
+
 function initProviders(){
   providerSel.innerHTML = Object.keys(PROVIDERS)
     .map(k => '<option value="'+k+'">'+PROVIDERS[k].label+'</option>').join('');
   const saved = readStore();
   providerSel.value = saved.provider && PROVIDERS[saved.provider] ? saved.provider : 'ollama';
+
+  // ?ollama=https://<codespace>-11434.app.github.dev  -> saves it and switches to Ollama
+  const qOllama = new URLSearchParams(location.search).get('ollama');
+  if(qOllama){
+    const base = normalizeOllamaBase(qOllama);
+    saved.provider = 'ollama';
+    saved.byProvider = saved.byProvider || {};
+    saved.byProvider.ollama = Object.assign({}, saved.byProvider.ollama, {base: base});
+    writeStore(saved);
+    providerSel.value = 'ollama';
+  }
+
   applyProvider(providerSel.value);
+  updateNote();
 }
 
 function applyProvider(name){
@@ -201,7 +224,7 @@ function humanError(e){
   const msg = String(e && e.message ? e.message : e);
   const localBase = /localhost|127\.0\.0\.1/.test(baseInput.value);
   if(msg === 'Failed to fetch' && localBase && location.protocol === 'https:'){
-    return 'Ye page HTTPS pe hai aur browser HTTPS se http://localhost block karta hai. Ollama ke liye page local se kholo: python3 -m http.server 8000, phir http://localhost:8000/index.html';
+    return 'Ye page HTTPS pe hai, isliye browser http://localhost block kar raha hai (page ki galti nahi). Do raste: (1) Base URL me apna Codespace URL daalo <codespace>-11434.app.github.dev/v1, ya (2) page ko local se kholo: python3 -m http.server 8000.';
   }
   if(msg === 'Failed to fetch'){
     return localBase
@@ -230,13 +253,15 @@ function updateNote(){
 
   if(location.protocol === 'https:' && /localhost|127\.0\.0\.1/.test(baseInput.value)){
     warn = true;
-    text += ' | Ye page HTTPS pe hai, browser localhost block karega. Local model ke liye page local se kholo.';
+    text += ' | Ye page HTTPS pe hai: browser localhost block karega. Base URL me Codespace URL daalo (<codespace>-11434.app.github.dev) — /v1 khud lag jayega.';
   }
   noteEl.className = 'note' + (warn ? ' warn' : '');
   noteEl.textContent = text;
 }
 
 async function detectOllama(){
+  const fixed = normalizeOllamaBase(baseInput.value);
+  if(fixed && fixed !== baseInput.value){ baseInput.value = fixed; updateNote(); }
   const base = (baseInput.value.trim() || PROVIDERS.ollama.base).replace(/\/+$/, '');
   const root = base.replace(/\/v1$/, '');
   setStatus('Local models dhoond raha hoon...', false);
@@ -343,6 +368,10 @@ function setBusy(b){
 function currentCfg(){
   const name = providerSel.value;
   const p = PROVIDERS[name];
+  if(name === 'ollama'){
+    const fixed = normalizeOllamaBase(baseInput.value);
+    if(fixed !== baseInput.value) baseInput.value = fixed;
+  }
   return {
     name, kind: p.kind, needsKey: p.needsKey !== false,
     base: (baseInput.value.trim() || p.base).replace(/\/+$/, ''),
@@ -507,6 +536,16 @@ async function run(){
 }
 
 providerSel.addEventListener('change', () => applyProvider(providerSel.value));
+
+baseInput.addEventListener('blur', () => {
+  if(providerSel.value !== 'ollama') return;
+  const fixed = normalizeOllamaBase(baseInput.value);
+  if(fixed && fixed !== baseInput.value){
+    baseInput.value = fixed;
+    updateNote();
+    setStatus('Base URL auto-fix: ' + fixed, false);
+  }
+});
 modelInput.addEventListener('input', updateNote);
 $('#detect').addEventListener('click', detectOllama);
 $('#saveState').addEventListener('click', saveSettings);
