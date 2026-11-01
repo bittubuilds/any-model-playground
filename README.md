@@ -122,3 +122,19 @@ node proxy.mjs
 | `llama2-uncensored:7b` | 3.8 GB | purana classic |
 
 Ye open-weight, refusal-ablated models hain. Inke andar koi hosted safety layer nahi hoti, isliye output ka zimma tumhara hai.
+
+## Web tools (keyless search + page reading)
+
+`tools_server.py` runs next to Ollama and gives the app live web access with no API key
+(DuckDuckGo results + readable page text):
+
+```
+python3 tools_server.py 8765      # inside the codespace, or locally
+```
+
+Port 8765 is made public by the devcontainer. The app derives the tools URL from the
+Ollama URL (`-11434.` → `-8765.`), or you can set it by hand in Settings.
+
+In the chat:
+- Enable **Web tools** and models with tool-calling will search on their own.
+- Any model can be driven manually: `/search <query>`, `/read <url>`, `/web <query>`.
