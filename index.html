@@ -555,13 +555,35 @@ async function errText(res){
   return 'HTTP ' + res.status + ': ' + String(msg).slice(0, 600);
 }
 
+const NO_TOOLS = new Set();   // models that reject native tool calling
+
 async function streamOpenAI(c, messages, h){
   const headers = {'Content-Type':'application/json', 'Authorization':'Bearer ' + (c.key || 'ollama')};
   if(c.name === 'openrouter'){ headers['HTTP-Referer'] = location.href; headers['X-Title'] = 'Any-Model Playground'; }
-  const body = {model:c.model, messages, stream:true, max_tokens:c.maxTokens, temperature:c.temp};
-  if(c.tools) { body.tools = TOOL_DEFS; body.tool_choice = 'auto'; }
-  const res = await fetch(c.base + '/chat/completions', {method:'POST', headers, body: JSON.stringify(body), signal:c.signal});
-  if(!res.ok) throw new Error(await errText(res));
+  const buildBody = (withTools) => {
+    const b = {model:c.model, messages, stream:true, max_tokens:c.maxTokens, temperature:c.temp};
+    if(withTools && c.tools && !NO_TOOLS.has(c.model)) { b.tools = TOOL_DEFS; b.tool_choice = 'auto'; }
+    return b;
+  };
+  const send = (withTools) => fetch(c.base + '/chat/completions', {
+    method:'POST', headers, body: JSON.stringify(buildBody(withTools)), signal:c.signal
+  });
+
+  let res = await send(true);
+  if(!res.ok && c.tools && res.status === 400){
+    const txt = await res.text();
+    if(/tool/i.test(txt)){
+      // this model cannot do native tool calls: retry without them and use /search, /read instead
+      NO_TOOLS.add(c.model);
+      setStatus(c.model + ' native tools support nahi karta: /search ya /read <url> likh ke chalao', true);
+      res = await send(false);
+      if(!res.ok) throw new Error('HTTP ' + res.status + ': ' + (await errText(res)).slice(0, 400));
+    } else {
+      throw new Error('HTTP ' + res.status + ': ' + txt.slice(0, 600));
+    }
+  } else if(!res.ok){
+    throw new Error(await errText(res));
+  }
   const acc = {};
   await sse(res, j => {
     const ch = j.choices && j.choices[0];
