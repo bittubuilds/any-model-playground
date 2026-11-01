@@ -39,7 +39,14 @@ python3 -m http.server 8000
 # browser: http://localhost:8000/index.html
 ```
 
-GitHub Pages HTTPS pe hota hai, aur browser HTTPS page se `http://localhost:11434` block kar sakta hai. Chrome me usually chalta hai, warna local serve karo.
+**Important:** GitHub Pages HTTPS pe hota hai, aur Chrome HTTPS page se `http://localhost:11434` block kar deta hai (Private Network Access). Local Ollama ke liye page ko local se kholo:
+
+```bash
+python3 -m http.server 8000
+# browser: http://localhost:8000/index.html
+```
+
+Deployed Pages URL cloud providers (Groq, OpenRouter, Anthropic, Gemini) ke liye hai.
 
 ## Cloud providers (CORS)
 

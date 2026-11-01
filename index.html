@@ -192,24 +192,41 @@ function applyProvider(name){
   render();
 }
 
+function humanError(e){
+  const msg = String(e && e.message ? e.message : e);
+  const localBase = /localhost|127\.0\.0\.1/.test(baseInput.value);
+  if(msg === 'Failed to fetch' && localBase && location.protocol === 'https:'){
+    return 'Ye page HTTPS pe hai aur browser HTTPS se http://localhost block karta hai. Ollama ke liye page local se kholo: python3 -m http.server 8000, phir http://localhost:8000/index.html';
+  }
+  if(msg === 'Failed to fetch'){
+    return localBase
+      ? 'localhost se connect nahi hua. Ollama chalu hai? Terminal me: ollama serve. CORS ke liye OLLAMA_ORIGINS=* set karo.'
+      : 'Request block hui (CORS ya network). Us provider ke liye proxy.mjs chalao.';
+  }
+  return msg;
+}
+
 function updateNote(){
   const name = providerSel.value;
   const p = PROVIDERS[name];
   const model = modelInput.value.trim() || (p.models && p.models[0]) || '<model>';
+  let text, warn = !p.cors;
+
   if(name === 'ollama'){
-    noteEl.className = 'note';
-    noteEl.textContent = 'Local model. Pehle chalao: ollama pull ' + model +
+    text = 'Local model. Pehle chalao: ollama pull ' + model +
       '  |  CORS error aaye to OLLAMA_ORIGINS=* set karo. Lambi chat ke liye OLLAMA_CONTEXT_LENGTH=32768 set karo.';
-    return;
+  } else {
+    text = p.cors
+      ? 'Ye provider browser se direct chalta hai.'
+      : 'Is provider ka browser CORS open nahi hai. proxy.mjs chalao aur Base URL me http://localhost:8787' + p.base + ' daalo.';
   }
-  noteEl.className = 'note' + (p.cors ? '' : ' warn');
-  noteEl.textContent = p.cors
-    ? 'Ye provider browser se direct chalta hai.'
-    : 'Is provider ka browser CORS open nahi hai. proxy.mjs chalao aur Base URL me http://localhost:8787' + p.base + ' daalo.';
+
   if(location.protocol === 'https:' && /localhost|127\.0\.0\.1/.test(baseInput.value)){
-    noteEl.className = 'note warn';
-    noteEl.textContent += ' | Ye page HTTPS pe hai, browser localhost call block kar sakta hai. Phansa to file ko local me serve karo.';
+    warn = true;
+    text += ' | Ye page HTTPS pe hai, browser localhost block karega. Local model ke liye page local se kholo.';
   }
+  noteEl.className = 'note' + (warn ? ' warn' : '');
+  noteEl.textContent = text;
 }
 
 async function detectOllama(){
@@ -229,7 +246,7 @@ async function detectOllama(){
       setStatus('Ollama chal raha hai par koi model pull nahi hua. ollama pull ' + modelInput.value, true);
     }
   } catch(e){
-    setStatus('Ollama se connect nahi hua (' + String(e.message || e) + '). ollama serve chalu hai? CORS ke liye OLLAMA_ORIGINS=* set karo.', true);
+    setStatus(humanError(e), true);
   }
 }
 
@@ -440,7 +457,7 @@ async function run(){
     if(e.name === 'AbortError'){
       a.content += (a.content ? '\n\n' : '') + '[stopped]';
     } else {
-      setStatus(String(e.message || e), true);
+      setStatus(humanError(e), true);
       if(!a.content) a.content = '(request failed)';
     }
   } finally {
