@@ -65,7 +65,13 @@ if ! curl -sf http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
 fi
 log "api up"
 
-# 3. model
+# 3. serve the playground on port 8000 straight away (so the page is up even while the model downloads)
+if command -v python3 >/dev/null 2>&1 && ! pgrep -f "http[.]server 8000" >/dev/null 2>&1; then
+  ( cd "$(dirname "$0")/.." && nohup python3 -m http.server 8000 >/tmp/site.log 2>&1 & )
+  log "playground served on port 8000 (log: /tmp/site.log)"
+fi
+
+# 4. model
 REPO_PART="${MODEL%%:*}"
 if ollama list 2>/dev/null | grep -q "$REPO_PART"; then
   log "$MODEL already pulled"
@@ -75,12 +81,6 @@ else
     log "FATAL: pull failed for $MODEL"
     exit 1
   fi
-fi
-
-# 4. serve the playground itself on port 8000 (Codespaces forwards it automatically)
-if command -v python3 >/dev/null 2>&1 && ! pgrep -f "http[.]server 8000" >/dev/null 2>&1; then
-  ( cd "$(dirname "$0")/.." && nohup python3 -m http.server 8000 >/tmp/site.log 2>&1 & )
-  log "playground served on port 8000 (log: /tmp/site.log)"
 fi
 
 echo

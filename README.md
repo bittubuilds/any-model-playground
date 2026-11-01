@@ -2,7 +2,13 @@
 
 [![Open in GitHub Codespaces](https://img.shields.io/badge/Open%20in-Codespaces-blue?logo=github)](https://codespaces.new/bittubuilds/any-model-playground?quickstart=1)
 
-**One click:** upar wala button dabao -> codespace ban jayega, model khud pull hoga. Phir **Ports -> 8000 -> Open in Browser**: playground usi machine se chalega aur Ollama URL khud detect kar lega. Kuch copy-paste nahi.
+**Sabse seedha rasta:** codespace banao, port **11434** ko public karo, phir ye link kholo (bas codespace ka naam daalna hai):
+
+```
+https://bittubuilds.github.io/any-model-playground/?ollama=<codespace-name>-11434.app.github.dev
+```
+
+Port 8000 pe repo ka page bhi serve hota hai (optional second option).
 
 Ek single-file chat UI jisme koi bhi model chal sakta hai: local Ollama (uncensored/abliterated), ya cloud providers jaise Groq, OpenRouter, Claude, Gemini, OpenAI.
 
