@@ -152,7 +152,7 @@
         </div>
         <div class="row">
           <div><label for="temp">Temp</label><input id="temp" type="number" step="0.1" min="0" max="2" value="0.7"></div>
-          <div><label for="maxtok">Max tok</label><input id="maxtok" type="number" min="16" step="16" value="4096"></div>
+          <div><label for="maxtok">Max tok</label><input id="maxtok" type="number" min="16" step="16" value="1024"></div>
         </div>
         <label class="check"><input type="checkbox" id="useTools"> Web tools (search + read page)</label>
         <div>
@@ -195,7 +195,7 @@
 <script>
 const PROVIDERS = {
   ollama: {label:'Ollama (remote/local, uncensored)', base:'http://localhost:11434/v1', kind:'openai', cors:true, keyless:true,
-    models:['qwen9b-8k','gemma3:4b','eriktonon/qwen3.8-uncensored:9b','gemma4-vision','llama3.2-vision']},
+    models:['gemma3:4b','qwen9b-8k','huihui_ai/qwen2.5-abliterate:3b','eriktonon/qwen3.8-uncensored:9b']},
   groq: {label:'Groq', base:'https://api.groq.com/openai/v1', kind:'openai', cors:true,
     models:['openai/gpt-oss-120b','llama-3.3-70b-versatile','qwen/qwen3-32b']},
   openrouter: {label:'OpenRouter', base:'https://openrouter.ai/api/v1', kind:'openai', cors:true,
@@ -396,7 +396,7 @@ function providerDefaults(name){
     key: saved.key || '',
     system: saved.system || '',
     temp: saved.temp != null ? saved.temp : 0.7,
-    maxTokens: saved.maxTokens || 4096
+    maxTokens: saved.maxTokens || 1024
   };
 }
 function applyProvider(name){
@@ -435,11 +435,12 @@ function saveSettingsFromUI(){
     key: $('#key').value.trim(),
     system: $('#system').value,
     temp: parseFloat($('#temp').value) || 0.7,
-    maxTokens: parseInt($('#maxtok').value, 10) || 4096
+    maxTokens: parseInt($('#maxtok').value, 10) || 1024
   };
   persistSettings();
   $('#modelChip').textContent = settings.byProvider[name].model || '-';
   setStatus('Saved in this browser.');
+  warmUp(cfg());
 }
 
 function cfg(){
@@ -453,7 +454,7 @@ function cfg(){
     model: $('#model').value.trim(),
     system: $('#system').value,
     temp: parseFloat($('#temp').value) || 0.7,
-    maxTokens: parseInt($('#maxtok').value, 10) || 4096,
+    maxTokens: parseInt($('#maxtok').value, 10) || 1024,
     tools: $('#useTools').checked,
     toolsBase: ($('#toolsBase').value.trim() || DEFAULT_TOOLS).replace(/\/+$/, ''),
     signal: controller ? controller.signal : undefined
@@ -888,6 +889,17 @@ $('#micBtn').onclick = () => {
   rec.start();
 };
 
+/* ---------------- warm up ---------------- */
+function warmUp(c){
+  if(!c || c.kind !== 'openai' || c.name !== 'ollama' || !c.model) return;
+  const root = (c.base || '').replace(/\/v1$/, '');
+  fetch(root + '/api/generate', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({model:c.model, prompt:'hi', stream:false, keep_alive:'24h', options:{num_predict:1}})
+  }).then(() => setStatus('model RAM me warm hai: ' + c.model)).catch(() => {});
+}
+
 /* ---------------- boot ---------------- */
 function boot(){
   load();
@@ -906,8 +918,21 @@ function boot(){
 
   if(settings.tools === undefined) settings.tools = true;
   $('#useTools').checked = !!settings.tools;
+  // one-time speed migration: fast default model + shorter answers
+  if((settings.v || 0) < 3){
+    settings.v = 3;
+    const o = (settings.byProvider || {}).ollama;
+    if(o){
+      if(!o.model || o.model === 'qwen9b-8k') o.model = 'gemma3:4b';
+      if(!o.maxTokens || o.maxTokens > 1200) o.maxTokens = 1024;
+    }
+    if(!settings.toolsBase) settings.toolsBase = DEFAULT_TOOLS;
+    persistSettings();
+  }
+
   applyProvider(settings.provider || 'ollama');
   $('#toolsBase').value = settings.toolsBase || DEFAULT_TOOLS;
+  warmUp(cfg());
 
   if(!chats.length) activeChat(); else activeId = chats[0].id;
   renderChatList();
