@@ -157,7 +157,7 @@
         <label class="check"><input type="checkbox" id="useTools"> Web tools (search + read page)</label>
         <div>
           <label for="toolsBase">Tools service</label>
-          <input id="toolsBase" autocomplete="off" spellcheck="false" placeholder="auto from codespace">
+          <input id="toolsBase" autocomplete="off" spellcheck="false" placeholder="https://.../functions/webTools">
         </div>
         <button id="saveSettings" class="wide">Save settings</button>
         <p class="hint" id="provNote"></p>
@@ -216,6 +216,8 @@ const PROVIDERS = {
     models:['llama3.1','qwen2.5']}
 };
 
+const DEFAULT_TOOLS = 'https://superagent-234926c6.base44.app/functions/webTools';
+
 const TOOL_DEFS = [
   {type:'function', function:{name:'web_search', description:'Search the live web. Use for news, prices, current events, docs, anything time-sensitive.', parameters:{type:'object', properties:{query:{type:'string', description:'search query'}}, required:['query']}}},
   {type:'function', function:{name:'read_url', description:'Fetch a web page and return its readable text.', parameters:{type:'object', properties:{url:{type:'string', description:'absolute http(s) url'}}, required:['url']}}}
@@ -226,7 +228,7 @@ const LS_CHATS = 'amp.chats.v2';
 const $ = s => document.querySelector(s);
 
 let settings = {
-  provider:'ollama', byProvider:{}, tools:false, toolsBase:''
+  provider:'ollama', byProvider:{}, tools:true, toolsBase:''
 };
 let chats = [];
 let activeId = null;
@@ -412,9 +414,6 @@ function applyProvider(name){
     ? (d.p.keyless ? 'Ollama: koi key nahi. Base URL codespace/11434 ya localhost.' : 'Browser se direct chalta hai.')
     : 'Is provider ka CORS band hai. proxy.mjs chalana padega, tab base URL http://localhost:8787' + d.p.base;
   $('#modelChip').textContent = d.model || '-';
-  if(!$('#toolsBase').value){
-    $('#toolsBase').value = deriveToolsBase(d.base);
-  }
 }
 function deriveToolsBase(base){
   const m = /^https?:\/\/([^\/]+)/.exec(base || '');
@@ -456,7 +455,7 @@ function cfg(){
     temp: parseFloat($('#temp').value) || 0.7,
     maxTokens: parseInt($('#maxtok').value, 10) || 4096,
     tools: $('#useTools').checked,
-    toolsBase: ($('#toolsBase').value.trim() || deriveToolsBase($('#base').value)).replace(/\/+$/, ''),
+    toolsBase: ($('#toolsBase').value.trim() || DEFAULT_TOOLS).replace(/\/+$/, ''),
     signal: controller ? controller.signal : undefined
   };
 }
@@ -499,16 +498,24 @@ function renderAttach(){
 }
 
 /* ---------------- tool service ---------------- */
+function toolUrl(base, action, params){
+  const qs = new URLSearchParams(params || {});
+  if(/\/functions\/[\w-]+$/i.test(base)){
+    qs.set('action', action);
+    return base + '?' + qs.toString();
+  }
+  return base.replace(/\/+$/, '') + '/' + action + '?' + qs.toString();
+}
 async function toolSearch(q, base){
-  if(!base) throw new Error('tools service URL missing');
-  const r = await fetch(base + '/search?q=' + encodeURIComponent(q) + '&n=6');
+  if(!base) throw new Error('tools URL missing');
+  const r = await fetch(toolUrl(base, 'search', {q, n:6}));
   const j = await r.json();
   if(!r.ok || j.error) throw new Error(j.error || ('search HTTP ' + r.status));
   return j.results || [];
 }
 async function toolRead(url, base){
-  if(!base) throw new Error('tools service URL missing');
-  const r = await fetch(base + '/read?url=' + encodeURIComponent(url) + '&max=6000');
+  if(!base) throw new Error('tools URL missing');
+  const r = await fetch(toolUrl(base, 'read', {url, max:6000}));
   const j = await r.json();
   if(!r.ok || j.error) throw new Error(j.error || ('read HTTP ' + r.status));
   return j;
@@ -897,22 +904,21 @@ function boot(){
     persistSettings();
   }
 
+  if(settings.tools === undefined) settings.tools = true;
   $('#useTools').checked = !!settings.tools;
-  $('#toolsBase').value = settings.toolsBase || '';
   applyProvider(settings.provider || 'ollama');
-  if(settings.toolsBase) $('#toolsBase').value = settings.toolsBase;
-  if(!$('#toolsBase').value) $('#toolsBase').value = deriveToolsBase($('#base').value);
+  $('#toolsBase').value = settings.toolsBase || DEFAULT_TOOLS;
 
   if(!chats.length) activeChat(); else activeId = chats[0].id;
   renderChatList();
   renderMessages();
 
   // ping tools service quietly
-  const tb = $('#toolsBase').value;
+  const tb = $('#toolsBase').value || DEFAULT_TOOLS;
   if(tb){
-    fetch(tb + '/health').then(r => r.json()).then(j => {
-      if(j && j.ok) setStatus('tools service online');
-    }).catch(() => {});
+    fetch(toolUrl(tb, 'health', {})).then(r => r.json()).then(j => {
+      if(j && j.ok) setStatus('web tools online');
+    }).catch(() => setStatus('web tools offline: Settings me Tools URL check karo', true));
   }
 }
 boot();
