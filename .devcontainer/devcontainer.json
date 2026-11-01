@@ -7,7 +7,10 @@
   },
   "postCreateCommand": "bash scripts/start-ollama.sh",
   "postStartCommand": "bash scripts/start-ollama.sh",
-  "forwardPorts": [11434, 8000],
+  "forwardPorts": [
+    11434,
+    8000
+  ],
   "portsAttributes": {
     "11434": {
       "label": "Ollama API",
@@ -21,8 +24,13 @@
     }
   },
   "hostRequirements": {
-    "cpus": 2,
-    "memory": "8gb",
+    "cpus": 4,
+    "memory": "16gb",
     "storage": "32gb"
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/sshd:1": {
+      "version": "latest"
+    }
   }
 }
