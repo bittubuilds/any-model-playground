@@ -200,6 +200,20 @@ function initProviders(){
     saved.byProvider.ollama = Object.assign({}, saved.byProvider.ollama, {base: base});
     writeStore(saved);
     providerSel.value = 'ollama';
+  } else {
+    // Served from a Codespaces forwarded port (e.g. <name>-8000.app.github.dev)?
+    // Then Ollama on port 11434 of the same codespace is the obvious target.
+    const m = location.hostname.match(/^(.+)-(\d+)\.(app\.github\.dev|githubpreview\.dev|preview\.app\.github\.dev)$/);
+    const hasBase = saved.byProvider && saved.byProvider.ollama && saved.byProvider.ollama.base;
+    if(m && !hasBase){
+      saved.provider = 'ollama';
+      saved.byProvider = saved.byProvider || {};
+      saved.byProvider.ollama = Object.assign({}, saved.byProvider.ollama, {
+        base: 'https://' + m[1] + '-11434.' + m[3] + '/v1'
+      });
+      writeStore(saved);
+      providerSel.value = 'ollama';
+    }
   }
 
   applyProvider(providerSel.value);

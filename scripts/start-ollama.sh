@@ -77,13 +77,21 @@ else
   fi
 fi
 
+# 4. serve the playground itself on port 8000 (Codespaces forwards it automatically)
+if command -v python3 >/dev/null 2>&1 && ! pgrep -f "http[.]server 8000" >/dev/null 2>&1; then
+  ( cd "$(dirname "$0")/.." && nohup python3 -m http.server 8000 >/tmp/site.log 2>&1 & )
+  log "playground served on port 8000 (log: /tmp/site.log)"
+fi
+
 echo
 log "ready"
 ollama list
 echo
-log "Base URL to paste in the playground (Ports tab -> 11434 -> visibility Public):"
+log "Open the playground on the forwarded port 8000 (Ports tab -> 8000 -> Open in Browser)."
+log "It picks up this codespace's Ollama URL automatically. Manual base URL:"
 if [ -n "${CODESPACE_NAME:-}" ]; then
   log "  https://${CODESPACE_NAME}-11434.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-app.github.dev}/v1"
+  log "  https://${CODESPACE_NAME}-8000.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-app.github.dev}"
 else
   log "  http://localhost:11434/v1   (or your forwarded https URL + /v1)"
 fi

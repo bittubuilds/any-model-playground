@@ -1,5 +1,9 @@
 # Any-Model Playground
 
+[![Open in GitHub Codespaces](https://img.shields.io/badge/Open%20in-Codespaces-blue?logo=github)](https://codespaces.new/bittubuilds/any-model-playground?quickstart=1)
+
+**One click:** upar wala button dabao -> codespace ban jayega, model khud pull hoga. Phir **Ports -> 8000 -> Open in Browser**: playground usi machine se chalega aur Ollama URL khud detect kar lega. Kuch copy-paste nahi.
+
 Ek single-file chat UI jisme koi bhi model chal sakta hai: local Ollama (uncensored/abliterated), ya cloud providers jaise Groq, OpenRouter, Claude, Gemini, OpenAI.
 
 Koi backend nahi, koi login nahi, koi account nahi. API keys sirf tumhare browser ke `localStorage` me rehti hain.
